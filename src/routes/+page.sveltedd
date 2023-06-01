@@ -1,0 +1,340 @@
+<script>
+  import { onMount } from 'svelte';
+  import dungeonlist from './dungeons.json';
+
+  let dungeonParents = dungeonlist.dungeonLists;
+  let dungeonParentsNormal = dungeonlist.dungeonLists.normalDungeons;
+  let dungeonParentsTechnical = dungeonlist.dungeonLists.TechnicalDungeons;
+  let dungeons = [];
+  let dungeonsTech = [];
+
+  dungeonParentsNormal.forEach(parent => {
+  parent.subDungeons.forEach(dungeon => {
+    dungeon.parentName = parent.name;
+    dungeons.push(dungeon);
+  });
+});
+
+dungeonParentsTechnical.forEach(parent => {
+  parent.subDungeons.forEach(dungeontech => {
+    dungeontech.parentName = parent.name;
+    dungeonsTech.push(dungeontech);
+  });
+});
+
+  dungeons.forEach(dungeon => {
+    dungeon.filteredMonsterNames = [];
+  });
+
+  dungeonsTech.forEach(dungeonTech => {
+    dungeonTech.filteredMonsterNames = [];
+  });
+
+
+  let monsters = [];
+  let filteredMonsters = monsters;
+  let filteredDungeons = dungeons;
+  let filteredParents = dungeonParentsNormal;
+  let filteredDungeonsTech = dungeonParentsTechnical;
+  let searchQuery = '';
+  let debounceTimeout;
+  let showNames = false;
+  let filteredDungeonMonsters = [];
+  let filteredMonsterNames = [];
+
+  const parents = [
+  {
+    name: 'Parent1',
+    filteredDungeons: []
+  },
+  {
+    name: 'Parent2',
+    filteredDungeons: []
+  },
+  // ...
+];
+
+  async function loadDrops(dungeon) {
+    const response = await fetch(`https://jonathon-eng.github.io/PADData/monsterData.json`);
+    const data = await response.json();
+    const monsters = data.monsters;
+
+    // Filter the monsters by the dungeon drops
+    const filteredMonsters = monsters.filter(monster => dungeon.dungeonDrops.includes(monster.no));
+
+    // Store the names of the filtered monsters in an array
+    const filteredMonsterNames = filteredMonsters.map(monster => monster.name);
+
+    // Update the filteredMonsterNames property of the dungeon object
+    dungeon.filteredMonsterNames = filteredMonsterNames;
+
+    
+
+    // Log the names of the filtered monsters
+    console.log(`Monsters that can drop from ${dungeon.name}:`, filteredMonsterNames);
+
+    // Return the filtered monsters
+    return filteredMonsters;
+  }
+  async function loadDropsTech(dungeonTech) {
+    const response = await fetch(`https://jonathon-eng.github.io/PADData/monsterData.json`);
+    const data = await response.json();
+    const monsters = data.monsters;
+
+    // Filter the monsters by the dungeon drops
+    const filteredMonsters = monsters.filter(monster => dungeonTech.dungeonDrops.includes(monster.no));
+
+    // Store the names of the filtered monsters in an array
+    const filteredMonsterNames = filteredMonsters.map(monster => monster.name);
+
+    // Update the filteredMonsterNames property of the dungeon object
+    dungeon.filteredMonsterNames = filteredMonsterNames;
+
+
+
+    // Log the names of the filtered monsters
+    console.log(`Monsters that can drop from ${dungeon.name}:`, filteredMonsterNames);
+
+    // Return the filtered monsters
+    return filteredMonsters;
+  }
+
+  async function filterDungeons() {
+    filteredDungeons = dungeons.filter(dungeon => {
+      if (searchQuery.length > 0) {
+        const searchString = searchQuery.toLowerCase();
+        const dungeonName = dungeon.name.toLowerCase();
+        const dungeonDropNames = dungeon.filteredMonsterNames.join().toLowerCase();
+        const dungeonDropNumbers = dungeon.dungeonDrops.join().toLowerCase();
+        const parentName = dungeon.parentName.toLowerCase();
+
+        return dungeonName.includes(searchString) || 
+               dungeonDropNames.includes(searchString) || 
+               dungeonDropNumbers.includes(searchString) ||
+               parentName.includes(searchString);
+      } else {
+        return true;
+      }
+    });
+  }
+  async function filterDungeonsTech() {
+  filteredDungeonsTech = dungeonsTech.filter(dungeonTech => {
+    if (searchQuery.length > 0) {
+      const searchString = searchQuery.toLowerCase();
+      const dungeonName = dungeonTech.name.toLowerCase();
+      const dungeonDropNames = dungeonTech.filteredMonsterNames.join().toLowerCase();
+      const dungeonDropNumbers = Array.isArray(dungeonTech.dungeonDrops) ? dungeonTech.dungeonDrops.join().toLowerCase() : "";
+      const parentName = dungeonTech.parentName.toLowerCase();
+
+      return dungeonName.includes(searchString) || 
+             dungeonDropNames.includes(searchString) || 
+             dungeonDropNumbers.includes(searchString) ||
+             parentName.includes(searchString);
+    } else {
+      return true;
+    }
+  });
+}
+
+
+  onMount(async () => {
+    // Load drops for each dungeon
+    for (let i = 0; i < dungeons.length; i++) {
+      const dungeon = dungeons[i];
+      const filteredMonsters = await loadDrops(dungeon);
+      dungeon.filteredMonsterNames = filteredMonsters.map(monster => monster.name);
+    }
+
+    // Populate the filteredDungeons array on page load
+    await filterDungeons();
+
+
+    for (let i = 0; i < dungeonsTech.length; i++) {
+      const dungeonTech = dungeonsTech[i];
+      const filteredMonsters = await loadDrops(dungeonTech);
+      dungeonTech.filteredMonsterNames = filteredMonsters.map(monster => monster.name);
+    }
+
+    // Populate the filteredDungeons array on page load
+    await filterDungeonsTech();
+  });
+
+  function handleSearchInput(event) {
+  searchQuery = event.target.value.trim();
+
+  clearTimeout(debounceTimeout);
+  debounceTimeout = setTimeout(() => {
+    filterDungeons();
+    filterDungeonsTech();
+
+    // Highlight search results
+    const searchString = searchQuery.toLowerCase();
+    const regex = new RegExp(`(${searchString})`, 'gi');
+    const elements = document.querySelectorAll('.highlightable');
+    elements.forEach(element => {
+      // Exclude h1 tags from the search and highlight process
+      if (element.tagName !== 'H1') {
+        const originalText = element.textContent;
+        const highlightedText = originalText.replace(regex, '<span class="highlight">$1</span>');
+        element.innerHTML = highlightedText;
+      }
+    });
+  }, 300);
+}
+
+
+</script>
+
+<div class="center everything flex">
+<input class="search" type="text" placeholder="Search" on:input={handleSearchInput}>
+
+
+<!-- {#each dungeonParentsNormal as parent}
+<div class="dungeon">
+  <h1>{parent.name}</h1>
+  
+  {#each filteredDungeons.filter(dungeon => dungeon.parentName === parent.name) as dungeon}
+      <p class="DName highlightable">{dungeon.name}</p>
+
+      {#if dungeon.filteredMonsterNames.length > 0}
+        <ul class="flex">
+          {#each dungeon.filteredMonsterNames as monsterName, i}
+            <div class="flex column"> -->
+              <!-- <div class="card" style="background-image: url(https://pad.skyozora.com/images/pets/{dungeon.dungeonDrops[i]}.png)"> 
+              </div>  -->
+              <!-- <li class="highlightable">
+                <span class="bold">{dungeon.dungeonDrops[i]}</span> {monsterName}</li>
+            </div>
+          {/each}
+        </ul>
+      {/if}
+      {/each}
+    </div>
+{/each} -->
+
+
+{#each dungeonParentsTechnical as parent}
+<div class="dungeon">
+<h1>{parent.name}</h1>
+<p>JP Name: {parent.JPName}</p>
+  {#each filteredDungeonsTech.filter(dungeonTech => dungeonTech.parentName === parent.name) as dungeon}
+      <p class="DName highlightable">{dungeon.name}</p>
+      <a class="youtube" href="https://www.youtube.com/results?search_query=パズドラ%E3%80%80{dungeon.JPName}">{dungeon.JPName}</a>
+      {#if dungeon.filteredMonsterNames.length > 0}
+        <ul class="flex">
+          {#each dungeon.filteredMonsterNames as monsterName, i}
+            <div class="flex column">
+              <!-- <div class="card" style="background-image: url(https://pad.skyozora.com/images/pets/{dungeon.dungeonDrops[i]}.png)"> 
+              </div>  -->
+              <li class="highlightable">{dungeon.dungeonDrops[i]} {monsterName}</li>
+            </div>
+          {/each}
+        </ul>
+      {/if}
+      {/each}
+    </div>
+{/each}
+</div>
+
+
+
+  <style>
+h1{
+  font-family:Verdana, Geneva, Tahoma, sans-serif;
+  font-size: 2rem;
+}
+
+
+    ul{
+      list-style: none;
+      font-size: .8rem;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      width: 30px;
+      height: 30px;
+      aspect-ratio: 1;
+    background-repeat: no-repeat;
+    background-size: contain;
+    /* display: none;  */
+    border: 1px solid rgb(40, 40, 40);
+  }
+
+
+  .flex{
+    display: flex;
+
+
+  }
+
+
+
+  .bold{
+    font-weight: 600;
+  }
+  .column{
+    flex-direction: column;
+    text-align: center;
+    align-items: center;
+  }
+
+  #my-element {
+  display: none;
+}
+
+#my-element:target {
+  display: block;
+}
+
+.hidden{
+  display: none;
+}
+
+.everything{
+  margin-top: 1rem;
+  color: rgb(47, 47, 47);
+  margin-inline: 1rem;
+  align-items: center;
+}
+
+
+.search{
+  width: 50%;
+  height: 2rem;
+  border-radius: 10px;
+  border: 1px solid black;
+  text-align: center;
+  background-color: rgb(135, 135, 135);
+  color: rgb(181, 181, 181);
+}
+
+
+
+
+.DName{
+  color: rgb(59, 59, 59);
+}
+
+.youtube{
+  text-decoration: none;
+  color: green;
+}
+
+.dungeon{
+  border-bottom: 1px solid rgb(151, 45, 45);
+  padding: 1rem;
+  margin: auto;
+  margin-bottom: 2rem;
+  background-color: rgb(227, 227, 227);
+  width: 80%;
+  border-radius: 20px;
+
+}
+
+
+</style>
+
+
+
+'AIzaSyAgxYbKm0w4a6B-7IQ1jfzt5LPsImkIefM'; 

@@ -1,0 +1,256 @@
+<script>
+  import { onMount } from "svelte";
+  import { afterUpdate } from 'svelte';
+
+  let data = [];
+  let filteredData = [];
+  let searchTerm = "";
+
+  let monsterNames = [
+    { name: "Grannerve", value: "グランエルヴ" },
+    { name: "Wolf Daytona", value: "ウルトナ" },
+    // Add more monster names in the same format
+  ];
+
+
+  $: {
+    afterUpdate(() => {
+      const youtubeLink = document.querySelector('.youtube');
+      if (youtubeLink) {
+        youtubeLink.href = `https://www.youtube.com/results?search_query=パズドラ%E3%80%80${selectedName}`;
+      }
+    });
+  }
+
+  async function fetchData() {
+    const sheetId = '19Tb3wcYE9Dfb7BwJKuidJbC4t2eZkZTtDsO3V9DFZQE';
+    const sheetName = 'Sheet1';
+    const apiKey = 'AIzaSyAgxYbKm0w4a6B-7IQ1jfzt5LPsImkIefM'; 
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}?key=${apiKey}`;
+
+    try {
+      const response = await fetch(url);
+      const responseData = await response.json();
+
+      if (responseData.values && responseData.values.length > 0) {
+        data = responseData.values.slice(1).map(row => {
+          return {
+            main: row[0],
+            sub: row[1],
+            mainEng: row[2],
+            subEng: row[3],
+            known: row[4]
+          };
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  }
+
+  onMount(fetchData);
+
+  function convertStringToArray(str) {
+    try {
+      if (!str) return []; // Return an empty array if the input string is undefined or empty
+
+      // Remove the square brackets and split by comma
+      const arrayStr = str.slice(1, -1);
+      const elements = arrayStr.split(',');
+
+      // Trim any leading or trailing spaces and remove quotes from each element
+      const result = elements.map(element => element.trim().replace(/['"]/g, ''));
+
+      return result;
+    } catch (error) {
+      console.error('Error converting string to array:', error);
+      return [];
+    }
+  }
+
+  function search() {
+    if (!searchTerm) {
+      filteredData = []; // If search term is empty, hide the divs
+    } else {
+      filteredData = data.filter(row => {
+        const subArray = convertStringToArray(row.sub);
+        const subEngArray = convertStringToArray(row.subEng);
+        const knownArray = convertStringToArray(row.known);
+
+        // Check if any of the arrays contain the search term
+        const hasMatch =
+          subArray.some(sub => sub.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          subEngArray.some(subEng => subEng.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          knownArray.some(known => known.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        return hasMatch;
+      });
+    }
+  }
+
+  function handleSearchInput(event) {
+    searchTerm = event.target.value;
+    search();
+  }
+
+  function highlightText(text, searchTerm) {
+    if (!searchTerm) return text;
+
+    const pattern = new RegExp(`(${searchTerm})`, 'gi');
+    const highlightedText = text.replace(pattern, '<strong>$1</strong>');
+    return highlightedText;
+  }
+
+  function getRelatedValue(subArray) {
+    const matchingRow = data.find(row => convertStringToArray(row.sub).includes(subArray));
+    if (matchingRow) {
+      return matchingRow.subEng;
+    }
+    return '';
+  }
+
+  function hasKnownValue(row, subIndex) {
+    const knownArray = convertStringToArray(row.known);
+    return knownArray[subIndex] && knownArray[subIndex].trim() !== "";
+  }
+  let selectedName = "";
+
+</script>
+
+<main>
+  <div class="search-container {searchTerm ? 'active' : ''}">
+    <input
+      type="text"
+      placeholder="Search for a dungeon here"
+      bind:value="{searchTerm}"
+      on:input="{handleSearchInput}"
+      class="search-input"
+    />
+  </div>
+
+  
+<div class="container">
+  {#if searchTerm}
+    {#if filteredData.length > 0}
+      {#each filteredData as row}
+        {#each convertStringToArray(row.sub) as sub, subIndex}
+          {#if (
+            sub.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (convertStringToArray(row.subEng)[subIndex] &&
+              convertStringToArray(row.subEng)[subIndex].toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (hasKnownValue(row, subIndex) &&
+              convertStringToArray(row.known)[subIndex].toLowerCase().includes(searchTerm.toLowerCase()))
+          )}
+            <div class="data-entry">
+              <div class="row">
+                <span class="field-name">English Name:</span>
+                {@html convertStringToArray(row.subEng)[subIndex] && highlightText(convertStringToArray(row.subEng)[subIndex], searchTerm)}
+              </div>
+              <div class="row">
+                <span class="field-name">JP Name:</span>
+                {@html sub && highlightText(sub, searchTerm)}
+              </div>
+              {#if hasKnownValue(row, subIndex)}
+                <div class="row known">
+                  <span class="field-name">AKA:</span>
+                  {@html convertStringToArray(row.known)[subIndex] && highlightText(convertStringToArray(row.known)[subIndex], searchTerm)}
+                </div>
+              {/if}
+              
+              <div class="row">
+                <span class="field-name">Select Name:</span>
+                <select bind:value={selectedName}>
+                  {#each monsterNames as monster}
+                    <option value={monster.value}>{monster.name}</option>
+                  {/each}
+                </select>
+                  <a class="youtube" href={`https://www.youtube.com/results?search_query=パズドラ%E3%80%80${selectedName}${sub}`} target="_blank">
+                    YouTube Link
+                  </a>
+              </div>
+            </div>
+          {/if}
+        {/each}
+      {/each}
+    {:else}
+      <p>No data available. Please make a selection.</p>
+    {/if}
+  {/if}
+</div>
+
+
+
+  
+</main>
+
+<style>
+  /* Your styles here */
+  .container {
+    margin: 1rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .data-entry {
+    width: 80%; /* Set the desired width */
+    height: 10%; /* Set the desired height */
+    margin-bottom: 20px;
+    background-color: red;
+    border-radius: 10px;
+    text-align: center;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+
+  .field-name {
+    font-weight: bold;
+    margin-right: 5px;
+  }
+
+  strong {
+    background-color: yellow;
+    font-weight: bold;
+  }
+
+  input {
+    margin-bottom: 10px;
+  }
+  .known {
+    display: none;
+  }
+
+  .search-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    transition: all 0.3s ease-in-out;
+    margin: auto;
+  }
+
+  .search-container.active {
+    justify-content: center;
+    height: auto;
+    padding-top: 1rem;
+    margin: auto;
+  }
+
+  .search-container .search-input {
+    width: 300px;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 1rem;
+  }
+</style>
